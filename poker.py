@@ -1,5 +1,6 @@
+
 import random
-from timeit import repeat
+import numpy as np
 
 class Card:
     def __init__(self, value, suit):
@@ -39,6 +40,10 @@ class Player:
         self.name = name
         self.hand = []
         self.chips = 0
+        self.folded = False
+        self.played = False
+        self.callreq = 0
+        self.roundcontribution = 0
 
     def showchips(self):
         print(self.chips)
@@ -56,130 +61,137 @@ class Player:
         if bet <= self.chips:
             self.chips = self.chips - bet
             table.chips += bet
+            self.roundcontribution += bet
         else:
             print("You do not have enough chips")
 
     def receive_chips(self, amount):
         self.chips += amount
 
-    def play(self,callreq):
+    def play(self):
+        update_callreqs()
         table.showhand()
         self.showhand(), self.showchips()
-
-        if callreq == 0:
-            print("check or raise?")
+        print("{} to call".format(self.callreq))
+        end = False
+        if self.folded:
+            return end
         else:
-            print("call, raise or fold?")
+            if self.callreq ==0:
+                
+                if self.played:
+                    end = True
+                    return end
+                else:
+                    self.played = True
+                    print("Check or raise?")
+                    action = input()
+                    if action == "check":
+                        self.place_bet(self.callreq)
+                        return
+                    elif action == "raise":
+                        print("What do you raise by?")
+                        plyraise = int(input())
+                        self.place_bet(self.callreq+plyraise)
+                        return
+                    elif action =="fold":
+                        self.folded = True
+                        return
+                    else:
+                        print("invalid")
+                    return end
+                    
+            else:
+                self.played = True
+                print("Call, raise or fold?")
+                action = input()
+                if action == "call":
+                    self.place_bet(self.callreq)
+                    return
+                elif action == "raise":
+                    print("What do you raise by?")
+                    plyraise = int(input())
+                    self.place_bet(self.callreq+plyraise)
+                    return
+                elif action =="fold":
+                    self.folded = True
+                    return
+                else:
+                    print("invalid")
+                    
+def update_callreqs():
+    contrib_requirement = np.amax([player1.roundcontribution,player2.roundcontribution,player3.roundcontribution])
+    player1.callreq = contrib_requirement - player1.roundcontribution
+    player2.callreq = contrib_requirement - player2.roundcontribution
+    player3.callreq = contrib_requirement - player3.roundcontribution
+    return
 
-        action = input()
+def initialize_hand():
+    deck = Deck()
+    player1.folded = False
+    player2.folded = False
+    player3.folded = False
+    player1.hand = []
+    player2.hand = []
+    player3.hand = []
+    table.chips = 0
+    player1.draw(deck,2)
+    player2.draw(deck,2)
+    player3.draw(deck,2)
+    blind = 5
+    player3.place_bet(blind)
+    return deck
 
-        if action == "call" or "check":
-            self.place_bet(callreq)
-            callreq = 0
-            return callreq
-        elif action == "raise":
-            print("What do you raise by?")
-            plyraise = int(input())
-            self.place_bet(callreq+plyraise)
-            callreq = plyraise
-            return callreq
-        elif action =="fold":
-            callreq = callreq*-1
-            return callreq
-
-        else:
-            print("invalid")
-        
-deck = Deck()
 table = Player("Table")
 player1 = Player("Player 1")
 player2 = Player("Player 2")
 player3 = Player("Player 3")
 
-def begin_flop(num_players):
-    table.draw(deck,3)
+table.chips = 0
+player1.chips = 100
+player2.chips = 100
+player3.chips = 100
 
-    turn = 0
-    callrequ = 0
-
-    while callrequ > 0 or turn < num_players:
-        if turn == 0:
-            print("Player 1")
-            status = player1.play(callrequ)
-            turn += 1
-            callrequ = status
-            table.showchips()
-        elif turn ==1:
-            print("Player 2")
-            status = player2.play(callrequ)
-            turn += 1
-            callrequ = status
-            table.showchips()
-        elif turn ==2:
-            print("Player 3")
-            status = player3.play(callrequ)
-            turn += 1
-            callrequ = status
-            table.showchips()
-
+def play_round(round):
+    deck = []
+    if round == 0:
+        deck = initialize_hand()
+        play_turns()
+        round += 1
+    elif round == 1:
+        table.draw(deck,3)
+        play_turns()
+        round += 1 
+    elif round == 2 or 3:
+        table.draw(deck,1)
+        play_turns()
+        round += 1
     else:
-        if turn == 1:
-            player2.receive_chips(table.chips)
-            print("Player 2 wins")
-            print(table.chips)
-        elif turn == 0:
-            player1.receive_chips(table.chips)
-            print("Player 1 wins")
-            print(table.chips)
+        print("End of hand")
+        round = 0
 
-def begin_hand(num_players):
-    deck.shuffle()
+    player1.played = False
+    player2.played = False
+    player3.played = False
+    play_round(round)
 
+def play_turns():
     turn = 0
-    blind = 5
-
-    table.chips = 0
-    player1.chips = 100
-    player2.chips = 100
-    player2.chips = 100
-    
-    player1.draw(deck,2)
-    player2.draw(deck,2)
-    player3.draw(deck,2)
-
-    player3.place_bet(blind)
-    callrequ = blind
-
-    while callrequ > 0 or turn < num_players:
-        if turn == 0:
-            print("Player 1")
-            status = player1.play(callrequ)
+    end = False
+    while not end:
+        if turn%3 == 0:
+            end = player1.play()
+            update_callreqs()
             turn += 1
-            callrequ = status
-            table.showchips()
-        elif turn ==1:
-            print("Player 2")
-            status = player2.play(callrequ)
+        elif turn%3 == 1:
+            end = player2.play()
+            update_callreqs()
             turn += 1
-            callrequ = status
-            table.showchips()
-        elif turn ==2:
-            print("Player 3")
-            status = player3.play(callrequ)
+        elif turn%3 == 2:
+            end = player3.play()
+            update_callreqs()
             turn += 1
-            callrequ = status
-            table.showchips()
+        continue
 
-    else:
-        if turn == 1:
-            player2.receive_chips(table.chips)
-            print("Player 2 wins")
-            print(table.chips)
-        elif turn == 0:
-            player1.receive_chips(table.chips)
-            print("Player 1 wins")
-            print(table.chips)
 
-begin_hand(3)
-
-    
+play_round(0)
